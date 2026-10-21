@@ -1,0 +1,15 @@
+{
+  "name": "functional-effect-marketplace",
+  "description": "Model Functional Effect for Claude Code",
+  "owner": {
+    "name": "Brendatama Akbar Ramadhan",
+    "url": "https://github.com/brendatamaar"
+  },
+  "plugins": [
+    {
+      "name": "functional-effect",
+      "source": "./plugins/functional-effect",
+      "description": "Keep functional-core code pure in Go and TypeScript, design features as state maps and transition tables, and run agent work as plan → policy → interpret."
+    }
+  ]
+}
