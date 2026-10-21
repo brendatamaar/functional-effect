@@ -1,0 +1,7 @@
+{
+  "core": ["src/core/**"],
+  "shell": ["src/shell/**", "src/main.ts"],
+  "mode": "deny",
+  "stopCheck": "changed",
+  "profile": "distributed"
+}

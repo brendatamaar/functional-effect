@@ -1,0 +1,18 @@
+{
+  "name": "functional-effect-example-ts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p . && node --test \"dist/**/*.test.js\"",
+    "start": "tsc -p . && node dist/main.js"
+  },
+  "dependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.0"
+  }
+}
