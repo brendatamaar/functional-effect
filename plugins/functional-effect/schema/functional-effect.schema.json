@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brendatamaar/functional-effect/schema/functional-effect.schema.json",
+  "title": "Model Functional Effect configuration (.functional-effect.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "core": {
+      "description": "Globs (relative to this file) for functional-core files that must stay pure.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["internal/core/**", "pkg/core/**", "src/core/**", "core/**"]
+    },
+    "shell": {
+      "description": "Globs for imperative-shell files (boundary parsers, interpreters, wiring). Shown to Claude as context.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["internal/shell/**", "src/shell/**", "cmd/**"]
+    },
+    "exclude": {
+      "description": "Extra globs to skip. Tests, testdata and .d.ts files are always skipped.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "mode": {
+      "description": "deny: block edits that add effects and ask before new fe:allow exceptions. warn: allow them and add the report as context.",
+      "enum": ["deny", "warn"],
+      "default": "deny"
+    },
+    "stopCheck": {
+      "description": "changed: at the end of a turn, re-check core files changed during the turn (needs git). off: disable.",
+      "enum": ["changed", "off"],
+      "default": "changed"
+    },
+    "profile": {
+      "description": "How much of the model applies. core: pure step function, sum types and property tests. service: core plus boundary, interpreter, failure classes, capabilities and contract tests. distributed: service plus outbox, inbox, timers, unknown outcomes with fencing, replay and chaos tests. Used by design, test and the reviewer.",
+      "enum": ["service", "core", "distributed"],
+      "default": "service"
+    },
+    "designDir": {
+      "description": "Folder (relative to this file) for design documents written by /functional-effect:design and read by test and review.",
+      "type": "string",
+      "minLength": 1,
+      "default": "docs/design"
+    },
+    "verify": {
+      "description": "Command run at the end of a turn that changed core files, e.g. the core's property tests. Runs only after the user approves it with /functional-effect:verify; changing it requires approving again.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": { "type": "string", "minLength": 1 },
+            "timeout": { "description": "Seconds, capped at 540.", "type": "number", "exclusiveMinimum": 0, "default": 300 }
+          }
+        }
+      ]
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "go": { "$ref": "#/$defs/languageRules" },
+        "ts": { "$ref": "#/$defs/languageRules" }
+      }
+    }
+  },
+  "$defs": {
+    "languageRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forbidImports": {
+          "description": "Extra import paths/prefixes forbidden in core files.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "allowImports": {
+          "description": "Import paths/prefixes always allowed in core files, even if forbidden by default.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "forbidCalls": {
+          "description": "Extra JavaScript regular expressions matched against code (comments and strings removed).",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
