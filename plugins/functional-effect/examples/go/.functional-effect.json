@@ -1,0 +1,7 @@
+{
+  "core": ["internal/core/**"],
+  "shell": ["internal/shell/**", "cmd/**"],
+  "mode": "deny",
+  "stopCheck": "changed",
+  "profile": "distributed"
+}
