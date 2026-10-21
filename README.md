@@ -46,7 +46,7 @@ From a local clone: `claude plugin marketplace add ./functional-effect`. To try 
 
 The `functional-effect:model` skill (the pattern plus Go, plain TypeScript, Effect and agent-loop references) and the read-only `fe-reviewer` agent load when relevant.
 
-Adopting the model in existing code? Start with `/functional-effect:review --all` for a baseline, then `/functional-effect:extract` one flow at a time.
+If you want to adopting the model in existing codebase, you can start with `/functional-effect:review --all` for a baseline, then `/functional-effect:extract` one flow at a time.
 
 Not every project needs an outbox: set `profile` in `.functional-effect.json` to `core`, `service` (default) or `distributed` to scale what design, test and review ask for.
 
@@ -104,7 +104,7 @@ claude plugin validate . --strict
 
 ## Documentation
 
-The [plugin README](plugins/functional-effect/README.md) has the full details: the purity check, the `.functional-effect.json` reference, persistence and delivery, the testing approach, credits and the changelog.
+The [plugin README](plugins/functional-effect/README.md) has the full details: the purity check, the `.functional-effect.json` reference, persistence and delivery and the testing approach.
 
 ## License
 
