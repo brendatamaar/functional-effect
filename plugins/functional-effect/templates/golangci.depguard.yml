@@ -1,0 +1,53 @@
+# Model Functional Effect: enforce a pure functional core in CI (golangci-lint v2).
+# Merge into your .golangci.yml and adjust the core path. Check option names
+# against your golangci-lint version.
+version: "2"
+
+linters:
+  enable:
+    - depguard
+    - forbidigo
+    # Exhaustive type switches over sealed interfaces. Mark the core's sum types:
+    #   //sumtype:decl
+    #   type State interface{ isState() }
+    # A type switch over State that misses a variant (and has no default) then fails.
+    - gochecksumtype
+  settings:
+    gochecksumtype:
+      # A `default:` branch does not count as handling every variant, so new variants
+      # are never silently swallowed by a catch-all.
+      default-signifies-exhaustive: false
+    depguard:
+      rules:
+        functional-core:
+          files:
+            - "**/internal/core/**"
+            - "!$test"
+          deny:
+            - pkg: os
+              desc: "functional core: no filesystem/env/process access; use an Input or a Command"
+            - pkg: net
+              desc: "functional core: no network access; return a Command"
+            - pkg: database/sql
+              desc: "functional core: no database access; return a Command"
+            - pkg: io/ioutil
+              desc: "functional core: no filesystem access"
+            - pkg: math/rand
+              desc: "functional core: randomness arrives as an Input field"
+            - pkg: crypto/rand
+              desc: "functional core: randomness arrives as an Input field"
+            - pkg: log
+              desc: "functional core: logging is output; emit a Command or log in the shell"
+    forbidigo:
+      forbid:
+        - pattern: '^time\.(Now|Since|Until|Sleep|After|AfterFunc|Tick|NewTimer|NewTicker)$'
+          msg: "functional core: the clock arrives as an Input field"
+        - pattern: '^fmt\.(Print|Println|Printf|Fprint|Fprintln|Fprintf)$'
+          msg: "functional core: printing is output; do it in the shell"
+  exclusions:
+    rules:
+      # forbidigo applies to the whole module; keep it to the core only.
+      - path-except: 'internal/core/'
+        linters: [forbidigo]
+      - path: '_test\.go'
+        linters: [forbidigo]
