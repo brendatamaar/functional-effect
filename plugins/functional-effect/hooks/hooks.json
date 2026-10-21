@@ -1,0 +1,57 @@
+{
+  "description": "Model Functional Effect: keep functional-core files pure and verified. Opt-in per project via .functional-effect.json.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/fe-check.mjs", "session"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/fe-check.mjs", "turn"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/fe-check.mjs", "pre"],
+            "timeout": 15,
+            "statusMessage": "Checking functional core purity"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/fe-check.mjs", "stop"],
+            "timeout": 600,
+            "statusMessage": "Verifying functional core"
+          }
+        ]
+      }
+    ]
+  }
+}
