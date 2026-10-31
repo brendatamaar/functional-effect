@@ -42,5 +42,6 @@ Keep it fast and focused on the core — it runs at the end of every turn that t
 
 - Go: `go test ./internal/core/...`
 - TypeScript: `npm test --silent` or `npx tsc -p . && node --test "dist/core/**/*.test.js"`
+- Python: `python -m pytest -q <pkg>/core tests/core` or `python -m unittest discover -s tests -t .`
 
 Use `{ "command": "...", "timeout": 120 }` to set a timeout in seconds (default 300, maximum 540).

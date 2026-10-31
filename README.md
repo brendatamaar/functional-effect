@@ -12,13 +12,13 @@ A program is a sequence of typed states. A pure function moves from one state to
 
 | Plugin | Version | Description |
 |---|---|---|
-| [`functional-effect`](plugins/functional-effect) | 0.7.0 | Keep functional-core code pure in Go and TypeScript, design features as state maps and transition tables, and run agent work as plan → policy → interpret. |
+| [`functional-effect`](plugins/functional-effect) | 0.7.0 | Keep functional-core code pure in Go, TypeScript and Python, design features as state maps and transition tables, and run agent work as plan → policy → interpret. |
 
 The plugin applies the model at two layers:
 
 | Layer | What it governs | How |
 |---|---|---|
-| **1. The code** | Code Claude writes in your repo | A purity check on every edit to core files, an approved verify command after turns that change them, path-scoped rules, a reviewer agent, Go and TypeScript patterns |
+| **1. The code** | Code Claude writes in your repo | A purity check on every edit to core files, an approved verify command after turns that change them, path-scoped rules, a reviewer agent, Go, TypeScript and Python patterns |
 | **2. The agent** | How Claude itself works | Design as a value before code, policy between command and effect (including your approval of every exception), isolated interpreters |
 
 ## Install
@@ -44,7 +44,7 @@ From a local clone: `claude plugin marketplace add ./functional-effect`. To try 
 | `/functional-effect:check [--changed]` | Scans core files and proposes refactors |
 | `/functional-effect:verify [status\|approve\|revoke]` | Approves the command that runs after turns that change core files |
 
-The `functional-effect:model` skill (the pattern plus Go, plain TypeScript, Effect and agent-loop references) and the read-only `fe-reviewer` agent load when relevant.
+The `functional-effect:model` skill (the pattern plus Go, plain TypeScript, Effect, Python and agent-loop references) and the read-only `fe-reviewer` agent load when relevant.
 
 If you want to adopting the model in existing codebase, you can start with `/functional-effect:review --all` for a baseline, then `/functional-effect:extract` one flow at a time.
 
@@ -56,7 +56,7 @@ Not every project needs an outbox: set `profile` in `.functional-effect.json` to
 
 **Purity check.** The hooks stay inactive until a repo opts in with a `.functional-effect.json`. Then:
 
-- **PreToolUse** denies edits to core files that *add* an effect — IO/network/database imports, clock, randomness, console, timers, goroutines, process/browser globals, `Effect.run*`.
+- **PreToolUse** denies edits to core files that *add* an effect — IO/network/database imports, clock, randomness, console, timers, goroutines/threads, process/browser globals, `Effect.run*`. Works on Go, TypeScript/JavaScript and Python files.
 - **Ratchet**: only new violations block; legacy code never blocks unrelated edits.
 - **Exceptions** (`fe:allow <reason>`) need a reason and your approval.
 - **Per-turn baseline**: only what changed during Claude's turn is re-checked at Stop, so your uncommitted work is never blamed on Claude.
@@ -70,6 +70,7 @@ Not every project needs an outbox: set `profile` in `.functional-effect.json` to
 
 - Pure core with timers as commands, idempotency keys derived from state, and a fenced `Reconciling` state for unknown payment outcomes.
 - Shell with an interpreter (one failure strategy per command), a store with version check, inbox, event log and outbox, a leased outbox worker, and replay.
+- [`examples/python`](plugins/functional-effect/examples/python) is a compact `core`-profile version (frozen-dataclass sum types, `match` with `assert_never`, boundary parser, property tests with a shrinker), each property mutation-checked.
 - Shrinking property tests per invariant, boundary properties (and a Go fuzz target), contract suites run against both fakes and real adapters (TypeScript also on PostgreSQL via PGlite), and crash/concurrency/chaos tests — each mutation-checked.
 
 ## Repository layout
@@ -83,8 +84,8 @@ plugins/functional-effect/
   hooks/hooks.json                   SessionStart, UserPromptSubmit, PreToolUse, Stop
   scripts/fe-check.mjs               zero-dependency purity checker
   schema/                            JSON Schema for .functional-effect.json
-  templates/                         config, rules, golangci-lint, ESLint, permission policy
-  examples/                          go/, typescript/, design/
+  templates/                         config, rules, golangci-lint, ESLint, ruff/pyright, permission policy
+  examples/                          go/, typescript/, python/, design/
   test/                              checker, hook and outbox SQL tests
   evals/                             skill behavior and trigger evals
 ```

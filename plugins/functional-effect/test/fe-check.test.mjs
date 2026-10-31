@@ -417,3 +417,82 @@ test("turn: prints nothing (its stdout would become Claude's context)", () => {
   rmSync(dir, { recursive: true, force: true })
   rmSync(data, { recursive: true, force: true })
 })
+
+test("py: flags effectful imports and calls, ignores strings, docstrings, comments, TYPE_CHECKING and fe:allow", () => {
+  const dir = project({
+    "core/a.py": [
+      '"""Docstring.', // 1
+      "import os", // 2 inside a docstring: fine
+      "time.sleep(1)", // 3 fine
+      '"""', // 4
+      "from __future__ import annotations", // 5
+      "import os.path as osp", // 6 import
+      "import json, subprocess", // 7 import
+      "from datetime import datetime", // 8 fine
+      "from typing import TYPE_CHECKING", // 9
+      "from . import sibling", // 10 relative: fine
+      "if TYPE_CHECKING:", // 11
+      "    import requests", // 12 type-only: fine
+      "def f(x):", // 13
+      "    now = datetime.now()", // 14 clock
+      '    s = "datetime.now() print( open("', // 15 fine
+      "    # print(x) open(y)", // 16 fine
+      "    print(x)", // 17 io
+      "    t = f'{datetime.utcnow()} done'", // 18 clock inside f-string
+      "    u = f'{{datetime.now()}}'", // 19 escaped braces: fine
+      "    d = {'a': 1}.items()", // 20 fine
+      "    return open(x)  # fe:allow reviewed: path is injected in tests", // 21 allowed
+      "class Repo:", // 22
+      "    def open(self, p):", // 23 declaration: fine
+      "        return self.open(p)", // 24 member call: fine
+      "    def print(self): ...", // 25 declaration: fine
+    ].join("\n"),
+  })
+  const report = scanJson(dir)
+  assert.deepEqual(rulesOf(report).sort(), ["14:clock", "17:io", "18:clock", "6:import", "7:import"].sort())
+  assert.equal(report.exceptions, 1)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("py: allowImports, forbidImports and forbidCalls come from rules.py", () => {
+  const dir = project(
+    {
+      "core/a.py": ["import os.path", "import numpy", "import time", "def f():", "    return dangerous(1)"].join("\n"),
+    },
+    {
+      core: ["core/**"],
+      rules: { py: { allowImports: ["os.path"], forbidImports: ["numpy"], forbidCalls: ["\\bdangerous\\s*\\("] } },
+    },
+  )
+  const report = scanJson(dir)
+  assert.deepEqual(rulesOf(report).sort(), ["2:import", "3:import", "5:custom"].sort())
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("py: tests, conftest and non-core files are skipped; default src/<pkg>/core path is core", () => {
+  const dir = project(
+    {
+      "src/app/core/order.py": "import os\n",
+      "src/app/core/test_order.py": "import os\n",
+      "src/app/core/order_test.py": "import os\n",
+      "src/app/core/conftest.py": "import os\n",
+      "src/app/shell/io.py": "import os\n",
+    },
+    {},
+  )
+  const report = scanJson(dir)
+  assert.equal(report.scanned, 1)
+  assert.deepEqual(rulesOf(report), ["1:import"])
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("py: pre denies an edit that adds an effect, and allows a pure one", () => {
+  const dir = project({ "core/a.py": "def f(x):\n    return x + 1\n" })
+  const denied = run(["pre"], { stdin: preInput(dir, "core/a.py", "Edit", { old_string: "x + 1", new_string: "print(x)" }) })
+  assert.equal(JSON.parse(denied.out).hookSpecificOutput.permissionDecision, "deny")
+  const dated = run(["pre"], { stdin: preInput(dir, "core/a.py", "Edit", { old_string: "x + 1", new_string: "datetime.now()" }) })
+  assert.match(JSON.parse(dated.out).hookSpecificOutput.permissionDecisionReason, /core\/a\.py:2 +\[clock\]/)
+  const ok = run(["pre"], { stdin: preInput(dir, "core/a.py", "Edit", { old_string: "x + 1", new_string: "x + 2" }) })
+  assert.equal(ok.out, "")
+  rmSync(dir, { recursive: true, force: true })
+})

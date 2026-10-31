@@ -1,6 +1,6 @@
 # Testing a functional effect
 
-The model decides where each kind of test goes. Runnable versions of everything below are in `examples/go` and `examples/typescript`.
+The model decides where each kind of test goes. Runnable versions of everything below are in `examples/go` and `examples/typescript` (and, for the core and boundary layers, `examples/python`).
 
 | Layer | What can go wrong | Test |
 |---|---|---|
@@ -21,7 +21,7 @@ Mocks with call expectations (`expect(gateway.charge).toHaveBeenCalledWith(…)`
 - **Shrink** a failure to the shortest sequence that still fails, and make it reproducible (a seed). A failure then reads like a bug report: `Submit, PaymentSucceeded{Attempt:3}`.
 - A property must not restate the implementation. "The state after `PaymentSucceeded` is `Paid`" re-implements `step`; "`CreateShipment` is only emitted for an order that reached `Paid`" is an invariant.
 
-Go: a seeded `math/rand` generator and a remove-one-input shrinker (stdlib only), or `pgregory.net/rapid`. TS: `Arbitrary.schema(InputSchema)` from `effect/Arbitrary` (shrinks; unstable in Effect 4.0) or `fast-check`.
+Go: a seeded `math/rand` generator and a remove-one-input shrinker (stdlib only), or `pgregory.net/rapid`. TS: `Arbitrary.schema(InputSchema)` from `effect/Arbitrary` (shrinks; unstable in Effect 4.0) or `fast-check`. Python: Hypothesis (`st.lists(inputs)` shrinks and replays), or the stdlib seeded generator with a remove-one-input shrinker in `examples/python/tests/prop.py`.
 
 ### Boundary: four properties per parser
 

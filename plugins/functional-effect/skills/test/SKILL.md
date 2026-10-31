@@ -6,7 +6,7 @@ arguments: [feature]
 
 # Test: $feature
 
-Tests follow from the design, not from the code: each invariant, each boundary rule and each capability's promises becomes a named test. Read `references/testing.md` in the `functional-effect:model` skill for the patterns and the Go and TypeScript layout before writing anything.
+Tests follow from the design, not from the code: each invariant, each boundary rule and each capability's promises becomes a named test. Read `references/testing.md` in the `functional-effect:model` skill for the patterns and the Go, TypeScript and Python layout before writing anything.
 
 ## 1. Find the design
 
@@ -20,7 +20,7 @@ Write it as a table and show it to the user before writing tests when it adds mo
 |---|---|---|
 | each line under **Invariants** (core) | one property, named after the invariant | property test over input sequences, with shrinking |
 | each row of the **Transition table** | one case | table test |
-| each row of **Boundary** | round trip, accepted ⇒ valid, rejects each rule; a fuzz target in Go | property tests |
+| each row of **Boundary** | round trip, accepted ⇒ valid, rejects each rule; a fuzz target in Go (Hypothesis in Python) | property tests |
 | each capability in **Requirements** with a fake | one contract suite, run against the fake and the live adapter (simulator; sandbox or real database gated on environment variables) | contract test |
 | the Store in **Persistence and delivery** | the store contract | contract test |
 | each shell invariant | crash, duplicate, concurrency or chaos test | shell test |

@@ -12,14 +12,14 @@ The plugin applies the model at two layers:
 
 | Layer | What it governs | How |
 |---|---|---|
-| **1. The code** | Code Claude writes in your repo | A purity check on every edit to core files, an approved verify command after every turn that changes them, path-scoped rules, a reviewer agent, Go and TypeScript patterns |
+| **1. The code** | Code Claude writes in your repo | A purity check on every edit to core files, an approved verify command after every turn that changes them, path-scoped rules, a reviewer agent, Go, TypeScript and Python patterns |
 | **2. The agent** | How Claude itself works | Design as a value before code, policy between command and effect (including your approval of every exception), isolated interpreters |
 
 ## What's inside
 
 | Component | Name | Purpose |
 |---|---|---|
-| Skill | `functional-effect:model` | The pattern, rules for core and shell files, references for Go, plain TypeScript, Effect, LLM agent loops and profiles. Claude loads it when relevant. |
+| Skill | `functional-effect:model` | The pattern, rules for core and shell files, references for Go, plain TypeScript, Effect, Python, LLM agent loops and profiles. Claude loads it when relevant. |
 | Skill | `/functional-effect:design <feature>` | Writes `docs/design/<feature>.md` — state map, transition table, invariants, commands with cardinality and idempotency, call graph (production and tests), failure classes, requirements, boundary — and stops for approval. |
 | Skill | `/functional-effect:setup` | Configures a repo: core/shell paths, profile, design folder, verify command, rules file, baseline scan, optional CI lint rules and permission policy. |
 | Skill | `/functional-effect:extract <target>` | Moves the decisions of an existing handler or function that mixes logic with IO into a pure core, one flow at a time, behind characterization tests so behavior stays the same. Reports the bugs it notices instead of fixing them. |
@@ -30,9 +30,9 @@ The plugin applies the model at two layers:
 | Agent | `functional-effect:fe-reviewer` | Read-only review of changes against the model, including persistence, delivery, property and contract tests. |
 | Hooks | SessionStart, UserPromptSubmit, PreToolUse, Stop | Context and config warnings; a per-turn baseline; deny edits that add effects and ask before new exceptions; re-check and verify at the end of a turn. |
 | Schema | `schema/functional-effect.schema.json` | JSON Schema for `.functional-effect.json`. |
-| Templates | `templates/` | `.functional-effect.json`, `.claude/rules` file, golangci-lint (depguard, forbidigo, gochecksumtype), ESLint flat config (purity rules, switch exhaustiveness), Claude Code permission policy. |
+| Templates | `templates/` | `.functional-effect.json`, `.claude/rules` file, golangci-lint (depguard, forbidigo, gochecksumtype), ESLint flat config (purity rules, switch exhaustiveness), ruff + pyright config (banned imports, exhaustive `match`), Claude Code permission policy. |
 | Evals | `evals/` | Behavior and trigger cases for the skills, run with `claude plugin eval`. |
-| Examples | `examples/go`, `examples/typescript` | The same `distributed`-profile order checkout in both languages: pure core with timers and idempotency keys, shrinking property tests, boundary properties (and a Go fuzz target), an interpreter with a strategy per command, an HTTP payment adapter with a simulator, contract suites for the gateway and the store (TS: also against PostgreSQL), a store with version/inbox/event log/outbox, a worker, replay, and crash/concurrency/chaos tests. `examples/design/order-checkout.md` is the matching design document. |
+| Examples | `examples/go`, `examples/typescript`, `examples/python` | The same `distributed`-profile order checkout in both languages: pure core with timers and idempotency keys, shrinking property tests, boundary properties (and a Go fuzz target), an interpreter with a strategy per command, an HTTP payment adapter with a simulator, contract suites for the gateway and the store (TS: also against PostgreSQL), a store with version/inbox/event log/outbox, a worker, replay, and crash/concurrency/chaos tests. `examples/design/order-checkout.md` is the matching design document. `examples/python` is a compact `core`-profile version (frozen-dataclass sum types, `match` with `assert_never`, boundary parser, shrinking property tests). |
 
 ## Profiles
 
@@ -65,7 +65,7 @@ Call graphs are shown as plain text with indented `→` arrows, with a separate 
 
 The hooks do nothing until a repository opts in with a `.functional-effect.json`.
 
-1. **Policy before effect (PreToolUse).** Before `Write`/`Edit` touches a core file, the checker computes the file's proposed content and denies the edit if it *adds* an effect: IO/network/database imports (including Go dot-imports), clock reads, randomness, console output, timers, goroutines, process and browser globals, or `Effect.run*` — as calls or as function values (`const now = Date.now`). Claude sees the line, the reason and how to restructure.
+1. **Policy before effect (PreToolUse).** Before `Write`/`Edit` touches a core file, the checker computes the file's proposed content and denies the edit if it *adds* an effect: IO/network/database imports (including Go dot-imports), clock reads, randomness, console output, timers, goroutines, process and browser globals, or `Effect.run*`; in Python also `os`/`subprocess`/`socket`/`asyncio`/`threading`/`time`/`random`/`logging` imports, `print`/`open`/`input`, `datetime.now()` and `uuid4()` — as calls or as function values (`const now = Date.now`). Claude sees the line, the reason and how to restructure.
 2. **Ratchet.** Only newly added violations block, keyed by rule and matched token, so renaming a variable on a legacy line does not count as new. Legacy code never blocks unrelated edits.
 3. **Exceptions are yours.** `fe:allow <reason>` on a line (or `fe:allow-file <reason>` in the first five lines) marks a reviewed exception. Every new one triggers an approval prompt; one without a reason suppresses nothing.
 4. **Per-turn baseline (UserPromptSubmit + Stop).** When you send a prompt, core files you have already changed are snapshotted. At the end of the turn, only what changed *during the turn* (edits, shell commands, even commits) is re-checked, so your own uncommitted work is never blamed on Claude. New violations send Claude back to fix them, at most three times per turn; new exceptions added outside the edit tools are reported to you.
@@ -89,16 +89,17 @@ The checker is a static, heuristic analysis (zero-dependency Node script). It ca
   "verify": { "command": "go test ./internal/core/...", "timeout": 120 },
   "rules": {
     "go": { "forbidImports": [], "allowImports": [], "forbidCalls": [] },
-    "ts": { "forbidImports": [], "allowImports": [], "forbidCalls": [] }
+    "ts": { "forbidImports": [], "allowImports": [], "forbidCalls": [] },
+    "py": { "forbidImports": [], "allowImports": [], "forbidCalls": [] }
   }
 }
 ```
 
 | Field | Default | Meaning |
 |---|---|---|
-| `core` | common core paths | Globs for pure files |
+| `core` | common core paths (`internal/core`, `src/core`, `src/*/core`, `core`) | Globs for pure files |
 | `shell` | common shell paths | Globs for shell files (shown to Claude as context) |
-| `exclude` | tests, `testdata`, `.d.ts` | Extra globs to skip |
+| `exclude` | tests (`*_test.go`, `*.test.*`, `test_*.py`, `conftest.py`), `testdata`, `.d.ts` | Extra globs to skip |
 | `mode` | `deny` | `deny` blocks the edit; `warn` allows it and adds the report as context |
 | `stopCheck` | `changed` | `changed` re-checks core files changed during the turn (needs git); `off` disables it |
 | `profile` | `service` | `core`, `service` or `distributed`: how much of the model applies (see Profiles) |
@@ -157,7 +158,7 @@ Every property and clause in the examples was checked by breaking the code it gu
 
 ## Install
 
-Requires Node.js 18+ on `PATH` (used by the hooks). The hooks run with `node` directly, so they work on Windows, macOS and Linux.
+Requires Node.js 18+ on `PATH` (used by the hooks). The Python example needs Python 3.11+. The hooks run with `node` directly, so they work on Windows, macOS and Linux.
 
 ```bash
 # from GitHub
@@ -181,6 +182,7 @@ node --test test/fe-check.test.mjs                                   # checker a
 (cd examples/go && go test -race ./... && go run ./cmd/demo)
 (cd examples/go && go test ./internal/shell -run XXX -fuzz=FuzzParseEvent -fuzztime=30s)
 (cd examples/typescript && npm install && npm test && npm start)
+(cd examples/python && python -m unittest discover -s tests -t .)
 claude plugin validate . --strict
 claude plugin eval . --runs 1                                        # skill behavior and trigger evals (calls the API)
 ```

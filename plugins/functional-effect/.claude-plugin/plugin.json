@@ -2,7 +2,7 @@
   "name": "functional-effect",
   "displayName": "Model Functional Effect",
   "version": "0.7.0",
-  "description": "Model Functional Effect for Claude Code: (state₂, commands) = f(state₁, input). Keeps functional-core code pure in Go and TypeScript, designs features as state maps and transition tables, and runs agent work as plan → policy → interpret.",
+  "description": "Model Functional Effect for Claude Code: (state₂, commands) = f(state₁, input). Keeps functional-core code pure in Go, TypeScript and Python, designs features as state maps and transition tables, and runs agent work as plan → policy → interpret.",
   "author": {
     "name": "Brendatama Akbar Ramadhan",
     "url": "https://github.com/brendatamaar"
@@ -15,6 +15,7 @@
     "effect",
     "go",
     "typescript",
+    "python",
     "architecture",
     "hooks"
   ]

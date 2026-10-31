@@ -13,6 +13,8 @@
 //   scan [--changed] [--json] [--root <dir>] [files...]
 //   approve [--root <dir>] [--data <dir>] [--revoke] [--status]
 //
+// Languages: Go, TypeScript/JavaScript and Python.
+//
 // Opt-in per project: nothing happens unless a `.functional-effect.json`
 // exists in the project (or a parent directory of the edited file).
 //
@@ -37,9 +39,12 @@ const MAX_VERIFY_TIMEOUT = 540
 // ---------------------------------------------------------------------------
 
 const DEFAULTS = {
-  core: ["internal/core/**", "pkg/core/**", "src/core/**", "core/**"],
-  shell: ["internal/shell/**", "src/shell/**", "cmd/**"],
-  exclude: ["**/*_test.go", "**/*.test.*", "**/*.spec.*", "**/__tests__/**", "**/testdata/**", "**/*.d.ts"],
+  core: ["internal/core/**", "pkg/core/**", "src/core/**", "src/*/core/**", "core/**"],
+  shell: ["internal/shell/**", "src/shell/**", "src/*/shell/**", "cmd/**"],
+  exclude: [
+    "**/*_test.go", "**/*.test.*", "**/*.spec.*", "**/__tests__/**", "**/testdata/**", "**/*.d.ts",
+    "**/test_*.py", "**/*_test.py", "**/conftest.py",
+  ],
 }
 
 const GO_IMPORTS = [
@@ -114,6 +119,68 @@ const TS_IMPORTS = [
   ["@effect/platform-deno", "live platform layer (wire it at the edge)"],
 ]
 
+// Python modules (exact module or any submodule: "os" also matches "os.path").
+// Allow a pure one with rules.py.allowImports, e.g. "os.path" or "pathlib".
+const PY_IMPORTS = [
+  ["os", "filesystem, env and process access"],
+  ["sys", "process and stdio access"],
+  ["subprocess", "process spawning"],
+  ["shutil", "filesystem access"],
+  ["pathlib", "filesystem access (allow it if you only use PurePath)"],
+  ["tempfile", "filesystem access"],
+  ["glob", "filesystem access"],
+  ["fileinput", "filesystem access"],
+  ["socket", "network access"],
+  ["ssl", "network access"],
+  ["select", "IO multiplexing"],
+  ["selectors", "IO multiplexing"],
+  ["http", "network access"],
+  ["urllib", "network access"],
+  ["ftplib", "network access"],
+  ["smtplib", "network access"],
+  ["imaplib", "network access"],
+  ["poplib", "network access"],
+  ["xmlrpc", "network access"],
+  ["socketserver", "network access"],
+  ["asyncio", "event loop and scheduling"],
+  ["threading", "concurrency"],
+  ["multiprocessing", "concurrency"],
+  ["concurrent", "concurrency"],
+  ["queue", "concurrency"],
+  ["sched", "scheduling"],
+  ["signal", "process signals"],
+  ["time", "clock"],
+  ["random", "randomness"],
+  ["secrets", "randomness"],
+  ["logging", "logging is output"],
+  ["sqlite3", "database access"],
+  ["dbm", "database access"],
+  ["shelve", "filesystem access"],
+  ["requests", "network access"],
+  ["httpx", "network access"],
+  ["aiohttp", "network access"],
+  ["urllib3", "network access"],
+  ["websockets", "network access"],
+  ["grpc", "network access"],
+  ["psycopg", "database access"],
+  ["psycopg2", "database access"],
+  ["asyncpg", "database access"],
+  ["pymysql", "database access"],
+  ["mysql", "database access"],
+  ["sqlalchemy", "database access"],
+  ["pymongo", "database access"],
+  ["motor", "database access"],
+  ["redis", "cache/network access"],
+  ["boto3", "cloud API access"],
+  ["botocore", "cloud API access"],
+  ["aiofiles", "filesystem access"],
+  ["django", "HTTP framework"],
+  ["flask", "HTTP framework"],
+  ["fastapi", "HTTP framework"],
+  ["starlette", "HTTP framework"],
+  ["tornado", "HTTP framework"],
+]
+
 // [regex source, rule, message]. A leading `(^|[^\w.$])` group is a delimiter
 // guard and is not part of the reported token. `{fmt}` / `{time}` are replaced
 // by the package names (or aliases) imported in the Go file. Patterns that do
@@ -140,6 +207,15 @@ const TS_CALLS = [
   ["\\b(globalThis\\.)?(localStorage|sessionStorage|indexedDB|window|navigator)\\s*[.\\[]", "browser", "touches browser globals"],
   ["\\bEffect\\.run(Promise|Sync|Fork|Callback)\\w*\\b", "execution", "executes an Effect (execution belongs at the edge)"],
   ["\\bManagedRuntime\\.make\\b", "execution", "builds a runtime (execution belongs at the edge)"],
+]
+
+const PY_CALLS = [
+  ["(^|[^\\w.])(print|input|open|breakpoint)\\s*\\(", "io", "performs console/file IO"],
+  ["\\b(datetime|date)\\.(now|utcnow|today)\\b", "clock", "reads the clock"],
+  ["(^|[^\\w.])uuid(1|4)\\s*\\(", "randomness", "uses randomness"],
+  ["\\buuid\\.uuid(1|4)\\b", "randomness", "uses randomness"],
+  ["\\bos\\.(environ|getenv|system|urandom)\\b", "process", "touches the process or host"],
+  ["\\bsys\\.(argv|exit|stdout|stderr|stdin)\\b", "process", "touches the process"],
 ]
 
 const HINT =
@@ -206,6 +282,7 @@ const matchesAny = (rel, globs) => globs.some((g) => globToRegex(g).test(rel))
 const languageOf = (file) => {
   const ext = path.extname(file).toLowerCase()
   if (ext === ".go") return "go"
+  if (ext === ".py") return "py"
   if ([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"].includes(ext)) return "ts"
   return null
 }
@@ -254,7 +331,7 @@ const PROFILE_NOTES = {
   distributed: "service plus outbox, inbox, timers, unknown outcomes with fencing, replay and chaos tests.",
 }
 const RULE_FILE = ".claude/rules/functional-effect.md"
-const RULE_LANGS = ["go", "ts"]
+const RULE_LANGS = ["go", "ts", "py"]
 const RULE_KEYS = ["forbidImports", "allowImports", "forbidCalls"]
 
 const findConfigFrom = (startDir) => {
@@ -349,6 +426,11 @@ function loadConfig(configPath) {
       allowImports: ruleList("ts", "allowImports"),
       forbidCalls: [...TS_CALLS, ...customCalls("ts").map((r) => [r, "custom", "forbidden by project config"])],
     },
+    py: {
+      forbidImports: [...PY_IMPORTS, ...ruleList("py", "forbidImports").map((p) => [p, "forbidden by project config"])],
+      allowImports: ruleList("py", "allowImports"),
+      forbidCalls: [...PY_CALLS, ...customCalls("py").map((r) => [r, "custom", "forbidden by project config"])],
+    },
   }
 }
 
@@ -367,7 +449,78 @@ const isCoreFile = (cfg, absFile) => {
 
 const blank = (s) => s.replace(/[^\n]/g, " ")
 
+/**
+ * Python: blank out `#` comments and string contents (single, triple-quoted,
+ * prefixed). The expressions inside f-strings are code and stay visible.
+ */
+function stripPy(src, keepStrings) {
+  let out = ""
+  let i = 0
+  const n = src.length
+
+  const fExpressions = (inner) => {
+    let r = ""
+    let depth = 0
+    for (let k = 0; k < inner.length; k++) {
+      const ch = inner[k]
+      if (depth === 0 && (ch === "{" || ch === "}") && inner[k + 1] === ch) {
+        r += "  "
+        k++
+      } else if (ch === "{") {
+        depth++
+        r += " "
+      } else if (ch === "}" && depth > 0) {
+        depth--
+        r += " "
+      } else r += depth > 0 || ch === "\n" ? ch : " "
+    }
+    return r
+  }
+
+  while (i < n) {
+    const c = src[i]
+    if (c === "#") {
+      const end = src.indexOf("\n", i)
+      const stop = end === -1 ? n : end
+      out += blank(src.slice(i, stop))
+      i = stop
+      continue
+    }
+    if (c === '"' || c === "'") {
+      const triple = src.startsWith(c.repeat(3), i)
+      const q = triple ? c.repeat(3) : c
+      const prefix = /(?:^|[^\w])([A-Za-z]{1,2})$/.exec(src.slice(Math.max(0, i - 3), i))?.[1] ?? ""
+      const isF = /f/i.test(prefix)
+      let j = i + q.length
+      let closed = false
+      while (j < n) {
+        if (src[j] === "\\") {
+          j += 2
+          continue
+        }
+        if (src.startsWith(q, j)) {
+          closed = true
+          break
+        }
+        if (!triple && src[j] === "\n") break
+        j++
+      }
+      j = Math.min(j, n)
+      const inner = src.slice(i + q.length, j)
+      const end = closed ? j + q.length : j
+      if (keepStrings) out += src.slice(i, end)
+      else out += q + (isF ? fExpressions(inner) : blank(inner)) + (closed ? q : "")
+      i = end
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
+}
+
 function strip(src, lang, { keepStrings }) {
+  if (lang === "py") return stripPy(src, keepStrings)
   let out = ""
   let i = 0
   const n = src.length
@@ -477,7 +630,7 @@ const lineAt = (text, index) => {
 // Analysis
 // ---------------------------------------------------------------------------
 
-const importMatches = (spec, entry) => spec === entry || spec.startsWith(entry + "/")
+const importMatches = (spec, entry, sep = "/") => spec === entry || spec.startsWith(entry + sep)
 
 function goImports(noComments) {
   const imports = [] // { path, alias, index }
@@ -508,6 +661,37 @@ function tsImports(noComments) {
   }
   return imports
 }
+
+/** Python: is the line at `index` inside an `if TYPE_CHECKING:` block (erased at runtime)? */
+function inTypeChecking(code, index) {
+  const lines = code.slice(0, index).split("\n")
+  const indentOf = (l) => l.length - l.trimStart().length
+  let indent = indentOf(code.slice(code.lastIndexOf("\n", index - 1) + 1).split("\n")[0])
+  for (let k = lines.length - 2; k >= 0 && indent > 0; k--) {
+    if (lines[k].trim() === "") continue
+    const here = indentOf(lines[k])
+    if (here >= indent) continue
+    if (/^\s*if\s+(?:typing\.)?TYPE_CHECKING\s*:/.test(lines[k])) return true
+    indent = here
+  }
+  return false
+}
+
+function pyImports(code) {
+  const imports = [] // { path, index, typeOnly }
+  const add = (spec, index) => {
+    if (spec && !spec.startsWith(".")) imports.push({ path: spec, index, typeOnly: inTypeChecking(code, index) })
+  }
+  let m
+  const plain = /^[ \t]*import[ \t]+([^\n;]+)/gm
+  while ((m = plain.exec(code))) for (const part of m[1].replace(/[()\\]/g, " ").split(",")) add(part.trim().split(/\s+/)[0], m.index)
+  const from = /^[ \t]*from[ \t]+([\w.]+)[ \t]+import\b/gm
+  while ((m = from.exec(code))) add(m[1], m.index)
+  return imports
+}
+
+/** Python: is the match at `index` the name in a `def` or `class` statement? */
+const isPyDeclaration = (code, index) => /\b(def|class)[ \t]+$/.test(code.slice(Math.max(0, index - 20), index))
 
 /**
  * TS: is the `(` at `open` the parameter list of a declaration rather than a call?
@@ -580,6 +764,13 @@ function analyze(source, lang, cfg) {
       const hit = rules.forbidImports.find(([p]) => importMatches(imp.path, p))
       if (hit) push(imp.index, "import", `imports "${imp.path}" (${hit[1]})`, imp.path)
     }
+  } else if (lang === "py") {
+    for (const imp of pyImports(codeOnly)) {
+      if (imp.typeOnly) continue // erased at runtime
+      if (rules.allowImports.some((a) => importMatches(imp.path, a, "."))) continue
+      const hit = rules.forbidImports.find(([p]) => importMatches(imp.path, p, "."))
+      if (hit) push(imp.index, "import", `imports "${imp.path}" (${hit[1]})`, imp.path)
+    }
   } else {
     for (const imp of tsImports(noComments)) {
       if (imp.typeOnly) continue // erased at compile time
@@ -610,6 +801,7 @@ function analyze(source, lang, cfg) {
       if (m[0].length === 0) re.lastIndex++
       if (lang === "ts" && m[0].endsWith("(") && isDeclaration(codeOnly, m.index + m[0].length - 1)) continue
       const lead = guarded ? (m[1] ?? "").length : 0
+      if (lang === "py" && isPyDeclaration(codeOnly, m.index + lead)) continue
       push(m.index + lead, rule, message, m[0].slice(lead))
     }
   }
@@ -968,7 +1160,7 @@ function modeSession() {
   }
   const context = [
     "Model Functional Effect is active in this project (config: .functional-effect.json).",
-    `Functional core paths: ${cfg.core.join(", ")}. Code there follows (state₂, commands) = step(state₁, input): no IO, network, filesystem, clock, randomness, console, timers, goroutines, or Effect.run*.`,
+    `Functional core paths: ${cfg.core.join(", ")}. Code there follows (state₂, commands) = step(state₁, input): no IO, network, filesystem, clock, randomness, console, timers, goroutines, threads, or Effect.run*.`,
     `Imperative shell paths: ${cfg.shell.join(", ")}. The shell parses outside data into core types at the boundary and interprets core commands into effects.`,
     `A PreToolUse check ${cfg.mode === "deny" ? "denies" : "flags"} edits that add effects to core files; new fe:allow exceptions need the user's approval. The functional-effect:model skill describes the pattern.`,
   ]
@@ -1034,7 +1226,7 @@ function modeApprove(args) {
   return 0
 }
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "dist", "build", "out", ".next", "coverage"])
+const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "dist", "build", "out", ".next", "coverage", "__pycache__", ".venv", "venv", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", "site-packages"])
 
 function walk(dir, acc) {
   for (const name of readdirSync(dir)) {

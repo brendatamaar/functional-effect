@@ -62,7 +62,7 @@ Tests (the profile decides which rows apply):
 
 ## Output
 
-Start with the call graph of the changed flow as plain text: indented `→` arrows in a `ts` or `go` code block, core and boundary nodes marked, retry and idempotency noted on external calls. Add a separate Tests graph when tests swap the implementations behind the capabilities. If the code's shape differs from the design document's call graph (in `designDir`), say where.
+Start with the call graph of the changed flow as plain text: indented `→` arrows in a `ts`, `go` or `py` code block, core and boundary nodes marked, retry and idempotency noted on external calls. Add a separate Tests graph when tests swap the implementations behind the capabilities. If the code's shape differs from the design document's call graph (in `designDir`), say where.
 
 For a baseline, also label each finding as the caller asks (for example fix now / fix when touched / fine), and judge existing code by what is about to build on it rather than by everything that could be better.
 

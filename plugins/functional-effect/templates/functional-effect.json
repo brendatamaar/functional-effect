@@ -9,6 +9,7 @@
   "verify": { "command": "go test ./internal/core/...", "timeout": 120 },
   "rules": {
     "go": { "forbidImports": [], "allowImports": [], "forbidCalls": [] },
-    "ts": { "forbidImports": [], "allowImports": [], "forbidCalls": [] }
+    "ts": { "forbidImports": [], "allowImports": [], "forbidCalls": [] },
+    "py": { "forbidImports": [], "allowImports": [], "forbidCalls": [] }
   }
 }

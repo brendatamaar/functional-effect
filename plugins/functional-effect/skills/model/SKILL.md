@@ -1,5 +1,5 @@
 ---
-description: The Model Functional Effect pattern — (state₂, commands) = f(state₁, input) — for writing or changing stateful logic in Go or TypeScript (plain or Effect). Use when implementing a feature with states and transitions (orders, workflows, async UI state, LLM agent loops), when code mixes logic with IO, or when a project has a .functional-effect.json. Scales by profile (core, service, distributed).
+description: The Model Functional Effect pattern — (state₂, commands) = f(state₁, input) — for writing or changing stateful logic in Go, TypeScript (plain or Effect) or Python. Use when implementing a feature with states and transitions (orders, workflows, async UI state, LLM agent loops), when code mixes logic with IO, or when a project has a .functional-effect.json. Scales by profile (core, service, distributed).
 ---
 
 # Model Functional Effect
@@ -29,8 +29,8 @@ A program is a sequence of typed states. A pure function moves from one state to
 The core is the path set in `.functional-effect.json` (`core`), commonly `internal/core/**` or `src/core/**`.
 
 - Export `step(state, input) → (state, commands)` and a `run` fold over a list of inputs.
-- `State`, `Input` and `Command` are closed sum types. Go: interfaces with an unexported marker method and a `//sumtype:decl` comment (checked by `gochecksumtype`). TS: discriminated unions with a `tag` field. Switches over them handle every variant explicitly; no catch-all `default` that would swallow a new variant.
-- A plain status whose values carry no data of their own (`queued`, `running`, `done`) can stay a named enum: Go `type TaskStatus string` with constants and a `Validate`/parse function, TS a union of string literals. Use a sum type as soon as one variant carries data the others do not (an attempt, a reason, a tracking number). Never a raw `string` or a set of booleans.
+- `State`, `Input` and `Command` are closed sum types. Go: interfaces with an unexported marker method and a `//sumtype:decl` comment (checked by `gochecksumtype`). TS: discriminated unions with a `tag` field. Python: unions of frozen dataclasses matched with `match`, ending in an `assert_never` arm. Switches over them handle every variant explicitly; no catch-all `default` that would swallow a new variant.
+- A plain status whose values carry no data of their own (`queued`, `running`, `done`) can stay a named enum: Go `type TaskStatus string` with constants and a `Validate`/parse function, TS a union of string literals, Python an `Enum` or `Literal`. Use a sum type as soon as one variant carries data the others do not (an attempt, a reason, a tracking number). Never a raw `string` or a set of booleans.
 - No IO, network, filesystem, database, console/logging, clock, randomness, timers, goroutines, environment variables, or `Effect.run*`. Randomness and generated IDs enter as fields on an `Input`.
 - **Time is a command.** To wait, emit `ScheduleInput{after, input}`; the shell feeds `input` back when it is due (e.g. `PaymentTimedOut`). Never read the clock to decide.
 - **Idempotency keys are derived in the core** from state (`charge:<orderId>:<attempt>`), so replays and redeliveries produce the same keys. *(service and up)*
@@ -41,9 +41,9 @@ The core is the path set in `.functional-effect.json` (`core`), commonly `intern
 
 ## Rules for shell files (service and up)
 
-- **Boundary**: every value from outside (HTTP body, webhook, queue message, DB row, env, file, LLM output) is `unknown` until parsed into a core type. Parse once, at the edge. TS: zod (or `Schema.decodeUnknownEffect` with Effect v4); Go: decode into a wire struct, then call core constructors.
+- **Boundary**: every value from outside (HTTP body, webhook, queue message, DB row, env, file, LLM output) is `unknown` until parsed into a core type. Parse once, at the edge. TS: zod (or `Schema.decodeUnknownEffect` with Effect v4); Go: decode into a wire struct, then call core constructors; Python: pydantic (strict) or msgspec, then the core's smart constructors.
 - **Interpreter**: one function maps each `Command` to an effect and returns the `Input` it produces (or none). Domain outcomes become `Input` values (e.g. `PaymentFailed`); failures are handled by their class (below).
-- **Capabilities** are injected, never imported globally: Go interfaces in a `Deps` struct with `context.Context`; TS a plain `Deps` object of interfaces (or, with Effect, services in the `R` of `Effect<A, E, R>`). If testing a function needs many fakes, it does too much: split it.
+- **Capabilities** are injected, never imported globally: Go interfaces in a `Deps` struct with `context.Context`; TS a plain `Deps` object of interfaces (or, with Effect, services in the `R` of `Effect<A, E, R>`); Python `Protocol`s in a `Deps` dataclass. If testing a function needs many fakes, it does too much: split it.
 - **Cardinality** is decided per command: one value (Go: a call; TS: `Effect`), a stream of values over time (Go: channel/iterator in the shell; TS: `Stream`), or a time-bounded value that is cached with a TTL and deduplicated for concurrent callers.
 - **Cross-cutting behavior** (retry, timeout, tracing, logging, caching) wraps the interpreter or a capability — `.pipe(...)` in Effect, middleware/decorators in Go — so the main flow stays readable.
 - **Resources** (connections, files, locks) are acquired and released with their scope (`defer` in Go; `Effect.acquireRelease`/`Scope` in Effect), so release happens on error and interruption too.
@@ -88,7 +88,7 @@ The schema, the transaction and the claim query in SQL are in [references/outbox
 
 Full patterns, both languages: [references/testing.md](references/testing.md). `/functional-effect:test` derives the tests from a design document. Core property tests apply to every profile; boundary and contract tests start at `service`; shell tests with crash points, concurrency and chaos start at `distributed`.
 
-- **Core property tests**: random input sequences from a small domain (two IDs, a few attempts) so they collide, invariants checked after every step, **shrinking** to the shortest failing sequence. One property per invariant in the design document, named after it. Go: a seeded `math/rand` generator plus a remove-one-input shrinker (see the example), or `pgregory.net/rapid`. TS: `effect/Arbitrary` derives generators from a Schema and shrinks (unstable in Effect 4.0), or `fast-check`.
+- **Core property tests**: random input sequences from a small domain (two IDs, a few attempts) so they collide, invariants checked after every step, **shrinking** to the shortest failing sequence. One property per invariant in the design document, named after it. Go: a seeded `math/rand` generator plus a remove-one-input shrinker (see the example), or `pgregory.net/rapid`. TS: `effect/Arbitrary` derives generators from a Schema and shrinks (unstable in Effect 4.0), or `fast-check`. Python: Hypothesis.
 - **Boundary property tests**: round trip (`parse(encode(e)) == e`), accepted ⇒ valid (against a predicate written independently of the parser), rejects each broken rule, and in Go a fuzz target. Messy input perturbs valid events.
 - **Contract tests**: every capability with a fake gets a contract suite, run against the fake and the live adapter (a simulator in every run; the sandbox or a real database when configured). Clauses use only the interface plus optional hooks, and assert error classes: success, each domain outcome, idempotency per key, unreachable and lost-response faults. The store contract covers version conflicts, the inbox, leases and serialization of every variant.
 - **Shell tests** with fakes that pass their contract: duplicate delivery, a crash after the effect and after recording the result, lost responses, a stall longer than the timeout (fencing), the worst-case concurrent interleaving (every handler loads before any commits), and a seeded chaos run asserting the money/side-effect invariant.
@@ -109,7 +109,7 @@ Already have a handler that mixes decisions and IO? `/functional-effect:extract`
 
 ## Showing a call graph
 
-When explaining an execution flow, an architecture, or a design (in chat, a design document, or a review), show the call graph as plain text, not a rendered diagram: indented `→` arrows inside a `ts` or `go` code block. Mark the core and boundary nodes. When tests swap the implementations behind R, show a separate Tests graph:
+When explaining an execution flow, an architecture, or a design (in chat, a design document, or a review), show the call graph as plain text, not a rendered diagram: indented `→` arrows inside a `ts`, `go` or `py` code block. Mark the core and boundary nodes. When tests swap the implementations behind R, show a separate Tests graph:
 
 ```ts
 // Production
@@ -135,7 +135,7 @@ worker → PaymentGateway.fake, Shipping.fake (scripted failures, crash points)
 
 The code should have the same shape as the graph. If it does not, either the graph or the code is wrong.
 
-For patterns see [references/go.md](references/go.md), [references/typescript.md](references/typescript.md) (plain TypeScript: zod, `Deps`, fast-check) and [references/typescript-effect.md](references/typescript-effect.md) (Effect v4; choose it when `package.json` already depends on `effect`). The plugin's `examples/` folder has a complete `distributed`-profile order-checkout example in both languages: `${CLAUDE_PLUGIN_ROOT}/examples/go` and `${CLAUDE_PLUGIN_ROOT}/examples/typescript` (the latter uses Effect).
+For patterns see [references/go.md](references/go.md), [references/typescript.md](references/typescript.md) (plain TypeScript: zod, `Deps`, fast-check) [references/typescript-effect.md](references/typescript-effect.md) (Effect v4; choose it when `package.json` already depends on `effect`) and [references/python.md](references/python.md) (frozen dataclasses, `match`, pydantic, `Protocol`, Hypothesis). The plugin's `examples/` folder has a complete `distributed`-profile order-checkout example in both languages: `${CLAUDE_PLUGIN_ROOT}/examples/go` and `${CLAUDE_PLUGIN_ROOT}/examples/typescript` (the latter uses Effect). `${CLAUDE_PLUGIN_ROOT}/examples/python` is a compact `core`-profile example (core, boundary, property tests).
 
 ## Mapping to Effect<A, E, R> (only for projects that use Effect)
 

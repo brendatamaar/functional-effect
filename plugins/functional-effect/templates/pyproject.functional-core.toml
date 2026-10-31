@@ -1,0 +1,53 @@
+# Model Functional Effect: enforce a pure functional core in CI (Python).
+# Two parts. Check option names against your ruff and pyright versions.
+
+# --- 1. <pkg>/core/ruff.toml -------------------------------------------------
+# Ruff reads the nearest config, so a ruff.toml inside the core folder applies
+# only to core files. `extend` keeps the rest of your project settings.
+#
+#   extend = "../../pyproject.toml"        # adjust the relative path
+#
+#   [lint]
+#   extend-select = [
+#     "TID251",  # banned-api (below)
+#     "T20",     # print / pprint
+#     "DTZ",     # naive datetime calls, datetime.now() etc.
+#     "S311",    # random for non-crypto use
+#     "BLE",     # blind except
+#     "ASYNC",   # blocking calls in async code
+#   ]
+#
+#   [lint.flake8-tidy-imports.banned-api]
+#   "os".msg = "Core is pure: filesystem, env and process access belong in the shell."
+#   "sys".msg = "Core is pure: process and stdio access belong in the shell."
+#   "subprocess".msg = "Core is pure: spawn processes in the shell."
+#   "socket".msg = "Core is pure: network access belongs in the shell."
+#   "asyncio".msg = "Core is pure: scheduling is a ScheduleInput command."
+#   "threading".msg = "Core is pure: concurrency belongs in the shell."
+#   "time".msg = "Core is pure: time is an Input field."
+#   "random".msg = "Core is pure: randomness is an Input field."
+#   "logging".msg = "Core is pure: logging is output; return a Command."
+#   "requests".msg = "Core is pure: network access belongs in the shell."
+#   "httpx".msg = "Core is pure: network access belongs in the shell."
+#   "sqlalchemy".msg = "Core is pure: database access belongs in the shell."
+#   "datetime.datetime.now".msg = "Core is pure: time is an Input field."
+#   "datetime.datetime.utcnow".msg = "Core is pure: time is an Input field."
+#   "uuid.uuid4".msg = "Core is pure: generated IDs are Input fields."
+#
+# Add the modules your project uses. Verify with a throwaway `import os` in a
+# core file: ruff should report TID251.
+
+# --- 2. Add to your pyproject.toml -------------------------------------------
+# Strict checking makes `match` exhaustive: a new variant that reaches
+# `assert_never` (in step, interpret, encode) fails the type check.
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+reportMatchNotExhaustive = "error"
+pythonVersion = "3.11"
+
+# Alternative: mypy.
+# [tool.mypy]
+# strict = true
+# warn_unreachable = true

@@ -9,7 +9,7 @@
     {
       "name": "functional-effect",
       "source": "./plugins/functional-effect",
-      "description": "Keep functional-core code pure in Go and TypeScript, design features as state maps and transition tables, and run agent work as plan → policy → interpret."
+      "description": "Keep functional-core code pure in Go, TypeScript and Python, design features as state maps and transition tables, and run agent work as plan → policy → interpret."
     }
   ]
 }

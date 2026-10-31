@@ -19,7 +19,7 @@
       "default": ["internal/shell/**", "src/shell/**", "cmd/**"]
     },
     "exclude": {
-      "description": "Extra globs to skip. Tests, testdata and .d.ts files are always skipped.",
+      "description": "Extra globs to skip. Tests (including Python test_*.py, *_test.py and conftest.py), testdata and .d.ts files are always skipped.",
       "type": "array",
       "items": { "type": "string" },
       "default": []
@@ -65,7 +65,8 @@
       "additionalProperties": false,
       "properties": {
         "go": { "$ref": "#/$defs/languageRules" },
-        "ts": { "$ref": "#/$defs/languageRules" }
+        "ts": { "$ref": "#/$defs/languageRules" },
+        "py": { "$ref": "#/$defs/languageRules" }
       }
     }
   },
@@ -75,7 +76,7 @@
       "additionalProperties": false,
       "properties": {
         "forbidImports": {
-          "description": "Extra import paths/prefixes forbidden in core files.",
+          "description": "Extra import paths/prefixes forbidden in core files (Python: dotted module names such as \"numpy\").",
           "type": "array",
           "items": { "type": "string" }
         },

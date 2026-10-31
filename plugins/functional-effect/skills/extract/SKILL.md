@@ -40,7 +40,7 @@ Before touching anything, make sure the flow has tests that call it at its curre
 
 Run the characterization tests after every step; a red test means undo the last step.
 
-1. **Types.** Add `State`, `Input` and `Command` in a core path: closed sum types when variants carry different data (see the model skill for the rule and for Go and TypeScript patterns). Nothing uses them yet.
+1. **Types.** Add `State`, `Input` and `Command` in a core path: closed sum types when variants carry different data (see the model skill for the rule and for Go, TypeScript and Python patterns). Nothing uses them yet.
 2. **`step`.** Move each decision into `step(state, input) → (state, commands)`, one transition at a time, calling the new function from the old code in place of the inline branch. Unhandled pairs return the state unchanged with no commands. The purity checker will deny effects in core files; restructure, never add `fe:allow`.
 3. **Boundary** (service and up). Replace ad hoc casting and validation of outside values with one parser per source that produces core types (zod or equivalent, a wire struct plus constructors in Go).
 4. **Interpreter.** Move each effect into a function from `Command` to the `Input` it produces, with capabilities passed in. Map each failure to its class; domain outcomes become `Input` values.

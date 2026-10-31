@@ -10,10 +10,10 @@ Configure this repository so Claude Code (layer 1: the code) and its own workflo
 
 ## 1. Inspect
 
-- Languages: `go.mod` → Go; `package.json` / `tsconfig.json` → TypeScript/JavaScript. A repo can have both. For TypeScript, note whether `package.json` depends on `effect` (use `references/typescript-effect.md`) or not (use plain `references/typescript.md`: zod, a `Deps` object, fast-check), and which of zod, fast-check or another schema/property library is already installed; suggest those over adding new ones.
+- Languages: `go.mod` → Go; `package.json` / `tsconfig.json` → TypeScript/JavaScript. `pyproject.toml` / `requirements.txt` / `setup.cfg` → Python (use `references/python.md`; note whether pydantic, Hypothesis, pyright or mypy are already installed and suggest those over adding new ones). A repo can have several. For TypeScript, note whether `package.json` depends on `effect` (use `references/typescript-effect.md`) or not (use plain `references/typescript.md`: zod, a `Deps` object, fast-check), and which of zod, fast-check or another schema/property library is already installed; suggest those over adding new ones.
 - What the project does, to suggest a profile: money, inventory, queues, retries of non-idempotent calls, workers → `distributed`; HTTP services, jobs, tools calling databases and APIs → `service`; CLIs, libraries, parsers, UI reducers → `core`.
-- Existing layout: look for directories that already hold pure domain logic (`internal/core`, `internal/domain`, `pkg/<x>/domain`, `src/core`, `src/domain`, `src/model`) and for shell code (`cmd`, `internal/http`, `internal/handler`, `internal/repository`, `src/api`, `src/server`, `src/shell`, `src/main.ts`).
-- Existing `.functional-effect.json`, `.claude/rules/`, `.claude/settings.json`, `.golangci.yml`, `eslint.config.*`.
+- Existing layout: look for directories that already hold pure domain logic (`internal/core`, `internal/domain`, `pkg/<x>/domain`, `src/core`, `src/domain`, `src/model`) and for shell code (`cmd`, `internal/http`, `internal/handler`, `internal/repository`, `src/api`, `src/server`, `src/shell`, `src/main.ts`; Python: `<pkg>/domain`, `<pkg>/core`, `<pkg>/api`, `<pkg>/adapters`, `main.py`).
+- Existing `.functional-effect.json`, `.claude/rules/`, `.claude/settings.json`, `.golangci.yml`, `eslint.config.*`, `ruff.toml` / `pyproject.toml`.
 
 ## 2. Agree on paths
 
@@ -31,9 +31,9 @@ Start from `${CLAUDE_PLUGIN_ROOT}/templates/functional-effect.json`, fill in the
 
 - `core` / `shell`: globs relative to the repo root.
 - `profile`: `core` | `service` (default) | `distributed`. `designDir`: relative folder for design documents.
-- `exclude`: extra globs to skip (tests, generated code and `.d.ts` are already skipped).
+- `exclude`: extra globs to skip (tests, generated code and `.d.ts` are already skipped; for Python, `test_*.py`, `*_test.py` and `conftest.py` are skipped).
 - `verify`: command string, or `{ "command": "...", "timeout": seconds }`.
-- `rules.go|ts.forbidImports`: extra import prefixes to forbid in the core; `allowImports`: prefixes to always allow; `forbidCalls`: extra regexes.
+- `rules.go|ts|py.forbidImports`: extra import prefixes to forbid in the core; `allowImports`: prefixes to always allow; `forbidCalls`: extra regexes.
 
 The full schema is `${CLAUDE_PLUGIN_ROOT}/schema/functional-effect.schema.json`. Unknown keys and invalid values are reported as warnings at session start.
 
@@ -55,6 +55,7 @@ Offer the layer for the profile only: `core` projects need the purity rules and 
 
 - Go: merge `${CLAUDE_PLUGIN_ROOT}/templates/golangci.depguard.yml` into `.golangci.yml` with the core path adjusted. It also enables `gochecksumtype`: add `//sumtype:decl` above the `State`, `Input` and `Command` interfaces so a type switch that misses a variant fails CI.
 - TypeScript: add `${CLAUDE_PLUGIN_ROOT}/templates/eslint.functional-core.mjs` to the repo and spread `functionalCore` into `eslint.config.*`, with `files` adjusted. It includes `switch-exhaustiveness-check`, which needs type information (`parserOptions.projectService`). Mention its typescript-eslint dependency.
+- Python: add a `ruff.toml` inside the core folder and the pyright section from `${CLAUDE_PLUGIN_ROOT}/templates/pyproject.functional-core.toml` (the template documents both). Strict type checking is what makes `match` over `State`, `Input` and `Command` exhaustive via `assert_never`.
 
 ## 7. Optional: layer 2 policy
 
